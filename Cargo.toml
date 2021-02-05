@@ -1,0 +1,21 @@
+[package]
+name = "u-siem-sonicwall"
+version = "0.0.3"
+authors = ["Samuel Garcés <samuel.garces@protonmail.com>"]
+license = "MIT"
+description = "Library to be used to build a custom SIEM with the framework uSIEM"
+repository = "https://github.com/u-siem/u-siem-core"
+keywords = ["SIEM", "security", "logs","sonicwall","vpn","firewall"]
+categories = ["security"]
+edition = "2018"
+
+[lib]
+name = "usiem_sonicwall"
+path = "src/lib.rs"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+crossbeam-channel = { version = "0.5" }
+u-siem = {version = "0.0"}
+chrono = "0.4"
