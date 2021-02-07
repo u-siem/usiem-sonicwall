@@ -1,6 +1,26 @@
 # usiem-sonicwall
 uSIEM parser for SonicWall Firewall
 
+Working modules: Firewall and WebProxy
+
+TODO: IPS, Auth, Endpoint and Statistics (Some low threats like scans)
+
+
+### Traffic Report Syslogs
+|Syslog ‘c’ Value|Syslog ID|Event Message|Comments|
+|----------------|---------|-------------|--------|
+|c=1024 This means Traffic Reporting, including bytes transferred.|97|Syslog Website Accessed| Has URL data|
+|c=1024|537|Connection Closed  | Non-URL traffic |
+|c=1024|1153|SSL VPN Traffic|Statistics reported by SSL VPN |
+|c=1024|1463|DPI-SSL Inspection Cleaned-up|Statistics reported by DPI-SSL |
+|c=262144 This means Connection Opened (most probably zero bytes transferred).|98|Connection Opened |  It is possible for some packets to trigger a Connection Opened, but later be dropped due to policy settings.|
+
+Example:
+`<134>id=firewall sn=18B1690729A8 time="2016-06-16 17:21:40 UTC" fw=10.205.123.15 pri=6 c=1024 m=97 app=48 n=9 src=192.168.168.10:52589:X0 dst=69.192.240.232:443:X1:a69-192-240-232.deploy.akamaitechnologies.com srcMac=98:90:96:de:f1:78 dstMac=ec:f4:bb:fb:f7:f6 proto=tcp/https op=1 sent=798 rcvd=12352 result=403 dstname=www.suntrust.com arg=/favicon.ico code=20 Category="Online Banking"`
+
+`<134>id=firewall sn=18B1690729A8 time="2016-08-19 17:15:19 UTC" fw=10.205.123.15 pri=6 c=1024 m=537 msg="Connection Closed" app=44 n=1183392 src=10.205.122.22:514:X1 dst=10.205.123.15:514:X1 proto=udp/syslog sent=294 spkt=1`
+
+
 Security related Message ID (https://www.sonicwall.com/techdocs/pdf/sonicos-6-5-1-log-events-reference-guide.pdf)
 ```
 22  Security ServicesAttacksAttack   ALERT  501  Ping of Death BlockedPing of death dropped
@@ -15,9 +35,6 @@ Security related Message ID (https://www.sonicwall.com/techdocs/pdf/sonicos-6-5-
 33  Users   Authentication AccessUser Activity INFO   ---   Unknown User Login AttemptUser login denied due to bad credentials
 34  Users   Authentication AccessUser Activity INFO   ---   Login Timeout Pending login timed out
 35  Users   Authentication AccessAttack   ALERT  506  Admin Login DisabledAdministrator login denied from %s; logins disabled from this interface
-36  Network  TCPTCPNOTICE  ---   TCP Packets DroppedTCP connection dropped
-37  Network  UDPUDPNOTICE  ---   UDP Packets DroppedUDP packet dropped
-38  Network  ICMPICMP    NOTICE  ---   ICMP Packets DroppedICMP packet dropped due to Policy
 41  Network  Network Access Debug   NOTICE  ---   Unknown Protocol DroppedUnknown protocol dropped
 67  VPN   VPN IPsec   Attack   ERROR  508  IPsec Authenticate FailureIPsec Authentication Failed
 70  VPN   VPN IPsec   Attack   ERROR  510  Illegal IPsec PeerIPsec packet from or to an illegal host
@@ -30,13 +47,9 @@ Security related Message ID (https://www.sonicwall.com/techdocs/pdf/sonicos-6-5-
 140 VPN   VPN Client   User Activity ERROR  ---   XAUTH Failure XAUTH Failed with VPN %s, Authentication failure
 159 Security ServicesAnti-Virus   Maintenance WARNING 526  AV Expire messageReceived AV Alert: Your Network Anti-Virus subscription has expired. %s
 165 Security ServicesE-mail Filtering Attack   ALERT  527  Allow E-mail AttachmentForbidden E-Mail attachment disabled
-173 Network  TCPLAN TCP   NOTICE  ---   LAN TCP Deny TCP connection from LAN denied
-174 Network  UDPLAN UDP | LAN TCPNOTICE  ---   LAN UDP Deny UDP packet from LAN dropped
-175 Network  ICMPLAN ICMP | LAN TCPNOTICE  ---   LAN ICMP DenyICMP packet from LAN dropped
 177 Security ServicesAttacksAttack   ALERT  528  TCP FIN Scan  Probable TCP FIN scan detected
 178 Security ServicesAttacksAttack   ALERT  529  TCP Xmas Scan Probable TCP XMAS scan detected
 179 Security ServicesAttacksAttack   ALERT  530  TCP Null Scan Probable TCP NULL scan detected
-181 Network  TCPDebug   DEBUG  ---   TCP FIN Drop TCP FIN packet dropped
 199 Users   Authentication AccessUser Activity INFO   ---   Admin Login From CLICLI administrator login allowed
 200 Users   Authentication AccessUser Activity WARNING ---   Admin Password Error From CLICLI administrator login denied due to bad credentials
 212 Network  L2TP Client   Maintenance INFO   ---   L2TP PPP Authenticate FailedL2TP PPP Authentication Failed
@@ -140,10 +153,6 @@ Security related Message ID (https://www.sonicwall.com/techdocs/pdf/sonicos-6-5-
 869 Firewall SettingsFlood ProtectionAttack   DEBUG  ---   TCP SYN ReceiveTCP SYN received
 879 Wireless  RF Monitoring ---WARNING ---   WLAN Radio Frequency Threat DetectedWLAN radio frequency threat detected
 881 System  Time---NOTICE  ---   System Clock Manually UpdatedSystem clock manually updated
-883 Firewall SettingsChecksum EnforcementTCP|UDP  NOTICE  ---   IP Checksum ErrorIP Header checksum error; packet dropped
-884 Firewall SettingsChecksum EnforcementTCPNOTICE  ---   TCP Checksum ErrorTCP checksum error; packet dropped
-885 Firewall SettingsChecksum EnforcementUDPNOTICE  ---   UDP Checksum ErrorUDP checksum error; packet dropped
-886 Firewall SettingsChecksum EnforcementUDPNOTICE  ---   ICMP Checksum ErrorICMP checksum error; packet dropped
 897 Firewall SettingsFlood ProtectionAttack   INFO   ---   Invalid TCP SYN Flood CookieTCP packet received with invalid SYN Flood cookie; TCP packet dropped
 898 Firewall SettingsFlood ProtectionAttack   ALERT  ---   RST-Flooding Machine BlacklistedRST-Flooding machine %s blacklisted
 899 Firewall SettingsFlood ProtectionAttack   WARNING ---   RST Flood Blacklist ContinuesRST Flood Blacklist on IF %s continues
@@ -256,7 +265,6 @@ s1368 Firewall SettingsFlood ProtectionAttack   ALERT  ---   Machine Removed Fro
 1519 Security ServicesBotnet Filter  ---ALERT  ---   Botnet Responder BlockedSuspected Botnet responder blocked: %s, Source: Dynamic List
 1526 Wireless  SonicPoint/SonicWave---INFO   ---   SonicWave License Invalid SonicWave %s
 1532 Security ServicesDPI-SSH    Users    ALERT  ---   DPI-SSH PF UserDPI SSH Port Forward Alert: %s
-1533 Security ServicesDPI-SSH    ---INFO   ---   DPI-SSH   DPI-SSH: %s
 1534 Security ServicesDPI-SSH    ---ALERT  ---   DPI-SSH Connection CheckDPI-SSH Connection: %s
 1564 Security ServicesDPI-SSL EnforcementMaintenance WARNING ---   SSLE Expire MessageReceived DPI-SSL Enforcement Alert: Your Network DPI-SSL Enforcement subscription has expired. %s
 ```
