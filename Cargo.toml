@@ -5,7 +5,7 @@ authors = ["Samuel Garcés <samuel.garces@protonmail.com>"]
 license = "MIT"
 description = "Library to be used to build a custom SIEM with the framework uSIEM"
 repository = "https://github.com/u-siem/u-siem-core"
-keywords = ["SIEM", "security", "logs","sonicwall","vpn","firewall"]
+keywords = ["SIEM", "security", "logs","sonicwall","firewall"]
 categories = ["security"]
 edition = "2018"
 
