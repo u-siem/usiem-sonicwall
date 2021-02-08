@@ -223,8 +223,8 @@ Security related Message ID (https://www.sonicwall.com/techdocs/pdf/sonicos-6-5-
 1338 System  Settings    Firewall   INFO   ---   User Change PasswordUser %s password is changed
 1343 VPN   VPN IPsec   User Activity INFO   ---   VPN Policy Enabled/DisabledVPN Policy %s
 1366 Firewall SettingsFlood ProtectionAttack   ALERT  ---   TCP-Flooding Machine BlacklistedTCP-Flooding machine %s blacklisted
-1367 Firewall SettingsFlood ProtectionAttack   WARNING ---   TCP Flood Blacklist ContinuesTCP Flood Blacklist on IF %s continue
-s1368 Firewall SettingsFlood ProtectionAttack   ALERT  ---   Machine Removed From TCP Flood BlacklistMachine %s removed from TCP flood blacklist
+1367 Firewall SettingsFlood ProtectionAttack   WARNING ---   TCP Flood Blacklist ContinuesTCP Flood Blacklist on IF %s continues
+1368 Firewall SettingsFlood ProtectionAttack   ALERT  ---   Machine Removed From TCP Flood BlacklistMachine %s removed from TCP flood blacklist
 1369 Firewall SettingsFlood ProtectionAttack   ALERT  ---   Possible TCP FloodPossible TCP Flood on IF %s
 1370 Firewall SettingsFlood ProtectionAttack   ALERT  ---   Possible TCP Flood CeasedPossible TCP Flood on IF %s has ceased
 1371 Firewall SettingsFlood Protection---WARNING ---   Possible TCP Flood ContinuesPossible TCP Flood on IF %s continues

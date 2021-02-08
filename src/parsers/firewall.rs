@@ -1,14 +1,21 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
-use usiem::events::field::{SiemField};
+use usiem::events::field::SiemField;
 use usiem::events::field_dictionary;
-use usiem::events::firewall::{ FirewallOutcome};
+use usiem::events::firewall::FirewallOutcome;
 use usiem::events::protocol::NetworkProtocol;
 use usiem::events::{SiemEvent, SiemLog};
 
-use super::common::{
-    add_value_or_not, parse_protocol,get_ip_values,firewall_event
-};
+use super::common::{add_value_or_not, firewall_event, get_ip_values, parse_protocol};
+
+pub fn is_firewall_event(ec: u32) -> bool {
+    [
+        36, 38, 41, 173, 174, 175, 522, 524, 526, 533, 534, 1024, 652, 1235, 1253, 1254, 1257,
+        1447, 262144,
+    ]
+    .contains(&ec)
+        || [64, 128, 256, 1024, 2048, 4096, 8192, 262144].contains(&ec)//Legacy
+}
 
 pub fn sonicwall_firewall<'a>(
     field_map: BTreeMap<&'a str, &'a str>,
@@ -58,10 +65,37 @@ pub fn sonicwall_firewall<'a>(
         Some(network_protocol) => {
             log.add_field(
                 field_dictionary::NETWORK_PROTOCOL,
-                SiemField::from_str(network_protocol.to_string()));
+                SiemField::from_str(network_protocol.to_string()),
+            );
         }
         None => {}
     };
+    let event_code = field_map
+        .get("c")
+        .map(|c| c.parse::<u32>().unwrap_or(0))
+        .unwrap_or(0);
+    let event_subcode = field_map
+        .get("m")
+        .map(|c| c.parse::<u32>().unwrap_or(0))
+        .unwrap_or(0);
+
+    let mut event_outcome = match event_code {
+        ec if [526, 1235].contains(&ec) => FirewallOutcome::ALLOW,
+        ec if [
+            36, 38, 41, 173, 174, 175, 522, 524, 533, 534, 652, 1253, 1254, 1257, 1447,
+        ]
+        .contains(&ec) =>
+        {
+            FirewallOutcome::BLOCK
+        }
+        262144 => FirewallOutcome::OPEN,
+        _ => FirewallOutcome::ALLOW,
+    };
+    if event_code == 1024 {
+        if event_subcode == 1153 || event_subcode == 1463 {
+            event_outcome = FirewallOutcome::STATS;
+        }
+    }
     let event = firewall_event(
         source_ip.clone(),
         source_port,
@@ -70,7 +104,7 @@ pub fn sonicwall_firewall<'a>(
         destination_port,
         destination_interface.clone(),
         network_transport.clone(),
-        FirewallOutcome::ALLOW,
+        event_outcome,
         in_bytes,
         out_bytes,
     );

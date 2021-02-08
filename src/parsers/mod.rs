@@ -2,13 +2,13 @@ use chrono::prelude::{TimeZone, Utc};
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use usiem::events::field::{SiemField, SiemIp};
-use usiem::events::{ SiemLog};
 use usiem::events::field_dictionary;
+use usiem::events::SiemLog;
 
-pub mod proxy_category;
 pub mod common;
 mod firewall;
-use firewall::sonicwall_firewall;
+pub mod proxy_category;
+use firewall::{sonicwall_firewall, is_firewall_event};
 mod def_event;
 use def_event::sonicwall_default;
 mod webproxy;
@@ -135,9 +135,15 @@ fn sonicwall_event_selector<'a>(
     //proto=Diplays the protocol information(rendered as “proto=[protocol]” or just “[proto]/[service]”)
     //rcvd=Indicates the number of bytes received within connection
     //rule=Used to identify a policy or a rule associated with an even
-  
-    let event_code = field_map.get("c").map(|c| c.parse::<u32>().unwrap_or(0)).unwrap_or(0);
-    let event_subcode = field_map.get("m").map(|m| m.parse::<u32>().unwrap_or(0)).unwrap_or(0);
+
+    let event_code = field_map
+        .get("c")
+        .map(|c| c.parse::<u32>().unwrap_or(0))
+        .unwrap_or(0);
+    let event_subcode = field_map
+        .get("m")
+        .map(|m| m.parse::<u32>().unwrap_or(0))
+        .unwrap_or(0);
     log.add_field(field_dictionary::EVENT_CODE, SiemField::U32(event_code));
     log.add_field("event.subcode", SiemField::U32(event_subcode));
 
@@ -147,90 +153,31 @@ fn sonicwall_event_selector<'a>(
             match event_subcode {
                 97 => {
                     //URL Traffic
-                    /*
-                    let url_domain = match field_map.get("dstname") {
-                        Some(val) => {
-                            Cow::Owned(val.to_string())
-                        }
-                        None => Cow::Borrowed("")
-                    };
-                    let (url_path, url_query) = match field_map.get("arg") {
-                        Some(val) => {
-                            println!("{}",val);
-                            if val.starts_with("/") {
-                                let pos = val.find("?");
-                                match pos {
-                                    Some(pos) => {
-                                        log.add_field(field_dictionary::URL_PATH, SiemField::from_str(Cow::Owned((&val[..pos]).to_string())));
-                                        log.add_field(field_dictionary::URL_QUERY, SiemField::from_str(Cow::Owned((&val[pos..]).to_string())));
-                                        (Cow::Owned((&val[..pos]).to_string()),Cow::Owned((&val[pos..]).to_string()))
-                                    },
-                                    None => {
-                                        log.add_field(field_dictionary::URL_PATH, SiemField::from_str(Cow::Owned((&val[..]).to_string())));
-                                        (Cow::Owned((&val[..]).to_string()),Cow::Borrowed(""))
-                                    }
-                                }
-                            }else{
-                                (Cow::Borrowed(""),Cow::Borrowed(""))
-                            }
-                        }
-                        None => (Cow::Borrowed(""),Cow::Borrowed(""))
-                    };
-                    let status_code = match field_map.get("result") {
-                        Some(val) => {
-                            match val.parse::<u32>() {
-                                Ok(val) => val,
-                                Err(_) => 0
-                            }
-                        }
-                        None => 0
-                    };
-                    let url_full = Cow::Owned(format!("{}{}{}",url_domain,url_path,url_query));
-                    let http_method = field_map.get("op").map(|op| http_operation(op)).unwrap_or(HttpMethod::CONNECT);
-                    let rule_name = field_map.get("Category").map(|c| Cow::Owned(c.to_string())).unwrap_or(Cow::Borrowed(""));
-                    let url_category = field_map.get("code").map(|c| c.parse::<u32>().unwrap_or(0u32)).map(|c| proxy_category::web_code_category(c)).unwrap_or(WebProxyRuleCategory::Uncategorized);
-                    //TODO: WebProxy
-                    let web_protocol = network_protocol.map(|pro|parse_network_protocol(&pro)).unwrap_or(WebProtocol::HTTP);
-                    let user_name = user_name.map(|usr| Cow::Owned(usr.to_string())).unwrap_or(Cow::Borrowed(""));
-
-                    let event = webproxy_event(source_ip.clone(), url_full, destination_ip.clone(), destination_port, url_domain, web_protocol,  WebProxyOutcome::ALLOW, in_bytes, out_bytes, user_name, Cow::Borrowed(""), Some(rule_name), Some(url_category), status_code, http_method);
-                    match event {
-                        Some(event) => {log.set_event(SiemEvent::WebProxy(event));},
-                        None => {}
-                    };
-                    */
-                    return sonicwall_webproxy(field_map,log);
+                    return sonicwall_webproxy(field_map, log);
                 },
                 537 => {
                     //Normal Traffic
-                    return sonicwall_firewall(field_map,log);
+                    return sonicwall_firewall(field_map, log);
                 },
                 1153 => {
                     //VPN Traffic
-                    return sonicwall_firewall(field_map,log);
-                },
-                262144 => {
-                    //OpenConnection
-                    return sonicwall_firewall(field_map,log);
+                    return sonicwall_firewall(field_map, log);
                 },
                 _ => {
                     //TODO
-                    return sonicwall_default(field_map,log);
+                    return sonicwall_default(field_map, log);
                 }
             }
         },
+        ec if is_firewall_event(ec) => {
+            return sonicwall_firewall(field_map, log);
+        },
         _ => {
             //TODO
-            return sonicwall_default(field_map,log);
+            return sonicwall_default(field_map, log);
         }
     }
 }
-
-
-
-
-
-
 
 pub fn extract_fields<'a>(message: &'a str) -> BTreeMap<&'a str, &'a str> {
     let mut field_map = BTreeMap::new();
@@ -337,7 +284,7 @@ mod filterlog_tests {
     use super::{extract_fields, parse_log};
     use usiem::events::field::SiemField;
     use usiem::events::field::SiemIp;
-    use usiem::events::{SiemLog, SiemEvent};
+    use usiem::events::{SiemEvent, SiemLog};
     use usiem::utilities::ip_utils::ipv4_from_str;
 
     #[test]
@@ -346,10 +293,7 @@ mod filterlog_tests {
         let map = extract_fields(log);
         assert_eq!(map.get("id"), Some(&"firewall"));
         assert_eq!(map.get("sn"), Some(&"SERIALNUMBER111"));
-        assert_eq!(
-            map.get("time"),
-            Some(&"2021-02-05 01:02:03 UTC")
-        );
+        assert_eq!(map.get("time"), Some(&"2021-02-05 01:02:03 UTC"));
         assert_eq!(map.get("fw"), Some(&"111.222.111.222"));
         assert_eq!(map.get("pri"), Some(&"6"));
         assert_eq!(map.get("c"), Some(&"1024"));
@@ -364,10 +308,7 @@ mod filterlog_tests {
         assert_eq!(map.get("dstMac"), Some(&"ec:f4:bb:fb:f7:f6"));
         assert_eq!(map.get("proto"), Some(&"tcp/50005"));
         assert_eq!(map.get("rcvd"), Some(&"392"));
-        assert_eq!(
-            map.get("rule"),
-            Some(&"123 (SSLVPN->NET_RRHH1)")
-        );
+        assert_eq!(map.get("rule"), Some(&"123 (SSLVPN->NET_RRHH1)"));
         assert_eq!(map.len(), 18);
     }
     #[test]
@@ -376,10 +317,7 @@ mod filterlog_tests {
         let map = extract_fields(log);
         assert_eq!(map.get("id"), Some(&"firewall"));
         assert_eq!(map.get("sn"), Some(&"SERIALNUMBER111"));
-        assert_eq!(
-            map.get("time"),
-            Some(&"2021-02-05 01:02:03 UTC")
-        );
+        assert_eq!(map.get("time"), Some(&"2021-02-05 01:02:03 UTC"));
         assert_eq!(map.get("fw"), Some(&"111.222.111.222"));
         assert_eq!(map.get("pri"), Some(&"6"));
         assert_eq!(map.get("c"), Some(&"1024"));
@@ -394,10 +332,7 @@ mod filterlog_tests {
         assert_eq!(map.get("dstMac"), Some(&"ec:f4:bb:fb:f7:f6"));
         assert_eq!(map.get("proto"), Some(&"tcp/50005"));
         assert_eq!(map.get("rcvd"), Some(&"392"));
-        assert_eq!(
-            map.get("rule"),
-            Some(&"123 (SSLVPN->NET_RRHH1)")
-        );
+        assert_eq!(map.get("rule"), Some(&"123 (SSLVPN->NET_RRHH1)"));
         assert_eq!(map.len(), 18);
     }
     #[test]
@@ -538,11 +473,71 @@ mod filterlog_tests {
                     Some(&SiemField::from_str("/favicon.ico"))
                 );
                 match log.event() {
-                    SiemEvent::WebProxy(_wp) => {
+                    SiemEvent::WebProxy(_wp) => {}
+                    _ => {
+                        assert_eq!("WebProxy", "Not WebProxy")
+                    }
+                }
+            }
+            Err(_) => assert_eq!(1, 0),
+        }
+    }
 
-                    },
-                    _ => {assert_eq!("WebProxy","Not WebProxy")}
-                    
+    #[test]
+    fn test_parser_default() {
+        let log = "<134>Feb 5 01:02:03 FWSonicWall 10.1.99.1 id=firewall sn=18B1690729A8 time=\"2016-06-16 17:21:40 UTC\" fw=10.205.123.15 pri=6 c=123456 m=231312 app=48 n=9 src=192.168.168.10:52589:X0 dst=69.192.240.232:443:X1:a69-192-240-232.deploy.akamaitechnologies.com srcMac=98:90:96:de:f1:78 dstMac=ec:f4:bb:fb:f7:f6 proto=tcp/https op=1 sent=798 rcvd=12352 result=403 dstname=www.suntrust.com arg=/favicon.ico code=20 Category=\"Online Banking\" msg=\"TEST\"";
+        let log = SiemLog::new(log.to_string(), 0, SiemIp::V4(0));
+        let siem_log = parse_log(log);
+        match siem_log {
+            Ok(log) => {
+                assert_eq!(log.service(), "firewall");
+
+                assert_eq!(
+                    log.field("observer.id"),
+                    Some(&SiemField::from_str("18B1690729A8"))
+                );
+                assert_eq!(
+                    log.field("observer.name"),
+                    Some(&SiemField::from_str("FWSonicWall"))
+                );
+                assert_eq!(
+                    log.origin(),
+                    &SiemIp::V4(ipv4_from_str("10.1.99.1").unwrap())
+                );
+                assert_eq!(
+                    log.field("source.mac"),
+                    Some(&SiemField::from_str("98:90:96:de:f1:78"))
+                );
+                assert_eq!(
+                    log.field("destination.mac"),
+                    Some(&SiemField::from_str("ec:f4:bb:fb:f7:f6"))
+                );
+                assert_eq!(
+                    log.field("source.ip"),
+                    Some(&SiemField::IP(
+                        SiemIp::from_ip_str("192.168.168.10").unwrap()
+                    ))
+                );
+                assert_eq!(
+                    log.field("destination.ip"),
+                    Some(&SiemField::IP(SiemIp::V4(
+                        ipv4_from_str("69.192.240.232").unwrap()
+                    )))
+                );
+                assert_eq!(
+                    log.field("event.original"),
+                    Some(&SiemField::from_str("TEST"))
+                );
+                assert_eq!(
+                    log.field("url.full"),
+                    None
+                );
+
+                match log.event() {
+                    SiemEvent::Unknown => {}
+                    _ => {
+                        assert_eq!("WebProxy", "Not WebProxy")
+                    }
                 }
             }
             Err(_) => assert_eq!(1, 0),

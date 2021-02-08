@@ -1,11 +1,13 @@
-use usiem::events::protocol::NetworkProtocol;
 use std::borrow::Cow;
+use std::collections::BTreeMap;
+use usiem::events::protocol::NetworkProtocol;
 use usiem::events::firewall::{FirewallEvent, FirewallOutcome};
 use usiem::events::field::{SiemField, SiemIp};
 use usiem::events::{SiemLog};
 use usiem::utilities::ip_utils::{port_to_u16};
 use usiem::events::common::{WebProtocol, HttpMethod};
 use usiem::events::webproxy::{WebProxyEvent,WebProxyOutcome,WebProxyRuleCategory};
+use usiem::events::field_dictionary;
 
 pub fn parse_protocol(proto : &str) -> (NetworkProtocol, Option<Cow<'static, str>>) {
     let mut splt = proto.split("/");
@@ -136,5 +138,50 @@ pub fn http_operation(operation : &str) -> HttpMethod {
         "2" => HttpMethod::POST,
         "3" => HttpMethod::UNKNOWN("HEAD".to_owned()),
         _ => HttpMethod::OPTIONS
+    }
+}
+
+pub fn common_extractor<'a>(
+    field_map: BTreeMap<&'a str, &'a str>,
+    mut log: SiemLog,
+) -> SiemLog {
+
+    for (key,value) in field_map.iter() {
+        if ["msg","sess","srcMac","dstMac"].contains(key) {
+            //TEXT type
+            let key = mapped_keys(key);
+            match key {
+                Some(key) => log.add_field(key, SiemField::from_str(value.to_string())),
+                None => {}
+            }
+
+        }else if ["usr"].contains(key) {
+            let key = mapped_keys(key);
+            match key {
+                Some(key) => log.add_field(key, SiemField::User(value.to_string())),
+                None => {}
+            }
+        }else if ["rcvd","sent"].contains(key) {
+            let key = mapped_keys(key);
+            match key {
+                Some(key) => log.add_field(key, SiemField::U64(value.parse::<u64>().unwrap_or(0))),
+                None => {}
+            }
+        }
+    }
+    log
+}
+
+
+fn mapped_keys(key : &str) -> Option<&'static str> {
+    match key {
+        "msg" => Some("event.original"),
+        "sess" => Some("event.dataset"),
+        "usr" => Some("user.name"),
+        "srcMac" => Some("source.mac"),
+        "dstMac" => Some("destination.mac"),
+        "sent" => Some(field_dictionary::SOURCE_BYTES),
+        "rcvd" => Some(field_dictionary::DESTINATION_BYTES),
+        _ => None
     }
 }
