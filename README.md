@@ -5,6 +5,7 @@ Working modules: Firewall and WebProxy
 
 TODO: IPS, Auth, Endpoint and Statistics (Some low threats like scans)
 
+Web Categories: https://www.sonicwall.com/products/firewalls/security-services/content-filtering-services/content-filtering-categories/#toggle-id-53
 
 ### Traffic Report Syslogs
 |Syslog ‘c’ Value|Syslog ID|Event Message|Comments|
