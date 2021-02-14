@@ -1,9 +1,10 @@
-# usiem-sonicwall
+![Rust](https://github.com/u-siem/usiem-sonicwall/workflows/Rust/badge.svg)
+# uSIEM SonicWall
 uSIEM parser for SonicWall Firewall
 
 Working modules: Firewall and WebProxy
 
-TODO: IPS, Auth, Endpoint and Statistics (Some low threats like scans)
+TODO: IPS, Auth, Endpoint
 
 Web Categories: https://www.sonicwall.com/products/firewalls/security-services/content-filtering-services/content-filtering-categories/#toggle-id-53
 
