@@ -1,6 +1,6 @@
 [package]
 name = "u-siem-sonicwall"
-version = "0.0.8"
+version = "0.0.9"
 authors = ["Samuel Garcés <samuel.garces@protonmail.com>"]
 license = "MIT"
 description = "Library to be used to build a custom SIEM with the framework uSIEM"

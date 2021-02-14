@@ -105,7 +105,7 @@ pub fn get_ip_values<'a>(value: &'a str) -> (Option<SiemIp>, Option<u16>, Option
     for s in value.split(":") {
         match pos {
             0 => {
-                src_ip = match SiemIp::from_ip_str(s.to_string()) {
+                src_ip = match SiemIp::from_ip_str(s) {
                     Ok(ip) => Some(ip),
                     Err(_) => None,
                 };

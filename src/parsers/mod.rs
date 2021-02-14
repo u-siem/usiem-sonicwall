@@ -8,7 +8,7 @@ use usiem::events::SiemLog;
 pub mod common;
 mod firewall;
 pub mod proxy_category;
-use firewall::{sonicwall_firewall, is_firewall_event};
+use firewall::{is_firewall_event, sonicwall_firewall};
 mod def_event;
 use def_event::sonicwall_default;
 mod webproxy;
@@ -45,7 +45,7 @@ pub fn parse_log(log: SiemLog) -> Result<SiemLog, SiemLog> {
     let mut observer_name: Option<SiemField> = None;
     let mut observer_ip: Option<SiemIp> = None;
     match syslog_hdr_content.get(4) {
-        Some(val1) => match SiemIp::from_ip_str((*val1).to_string()) {
+        Some(val1) => match SiemIp::from_ip_str(*val1) {
             Ok(val_ip) => {
                 observer_ip = Some(val_ip);
             }
@@ -54,7 +54,7 @@ pub fn parse_log(log: SiemLog) -> Result<SiemLog, SiemLog> {
         _ => {}
     };
     match syslog_hdr_content.get(5) {
-        Some(val1) => match SiemIp::from_ip_str((*val1).to_string()) {
+        Some(val1) => match SiemIp::from_ip_str(*val1) {
             Ok(val_ip) => {
                 observer_ip = Some(val_ip);
             }
@@ -154,24 +154,24 @@ fn sonicwall_event_selector<'a>(
                 97 => {
                     //URL Traffic
                     return sonicwall_webproxy(field_map, log);
-                },
+                }
                 537 => {
                     //Normal Traffic
                     return sonicwall_firewall(field_map, log);
-                },
+                }
                 1153 => {
                     //VPN Traffic
                     return sonicwall_firewall(field_map, log);
-                },
+                }
                 _ => {
                     //TODO
                     return sonicwall_default(field_map, log);
                 }
             }
-        },
+        }
         ec if is_firewall_event(ec) => {
             return sonicwall_firewall(field_map, log);
-        },
+        }
         _ => {
             //TODO
             return sonicwall_default(field_map, log);
@@ -528,10 +528,7 @@ mod filterlog_tests {
                     log.field("event.original"),
                     Some(&SiemField::from_str("TEST"))
                 );
-                assert_eq!(
-                    log.field("url.full"),
-                    None
-                );
+                assert_eq!(log.field("url.full"), None);
 
                 match log.event() {
                     SiemEvent::Unknown => {}
